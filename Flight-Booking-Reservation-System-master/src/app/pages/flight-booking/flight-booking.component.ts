@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { FlightService } from 'src/app/services/Flight/flight.service';
 import { ToastrService } from 'ngx-toastr';
-import { finalize } from 'rxjs/operators'; // <-- ADDED IMPORT
+import { finalize } from 'rxjs/operators';
 
 @Component({
   selector: 'app-flight-booking',
@@ -37,122 +37,76 @@ export class FlightBookingComponent implements OnInit {
     this.returnDate = '';
     this.adultCount = 0;
     this.childrenCount = 0;
-    this.flightClass = '';
+    this.flightClass = 'Economy Class';  // default
   }
 
   ngOnInit(): void {}
 
+  // Convert YYYY-MM-DD → DD-MM-YYYY (MATCH DB FORMAT)
+  convertToDDMMYYYY(dateStr: string): string {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-");
+    return `${d}-${m}-${y}`;
+  }
+
   handleFormSubmit(event: Event) {
     event.preventDefault();
 
+    // Validation
     if (this.origin === this.destination) {
-      this.toastr.error('Error', 'Origin and source cannot be the same');
-      return console.log('Origin and source cannot be the same');
+      this.toastr.error('Origin and destination cannot be the same');
+      return;
     }
 
-    if (this.departureDate > this.returnDate) {
-      this.toastr.error('Error', 'Return date must be after departure date');
-      return console.log('Return date must be after departure date');
+    if (this.returnDate && this.departureDate > this.returnDate) {
+      this.toastr.error('Return date must be after departure date');
+      return;
     }
 
     if (this.adultCount === 0 && this.childrenCount === 0) {
-      this.toastr.error(
-        'Error',
-        'Adult count and children count both cannot be 0 at the same time'
-      );
-      return console.log(
-        'Adult count and children count both cannot be 0 at the same time'
-      );
+      this.toastr.error('At least one passenger is required');
+      return;
     }
 
-    const newFlightBookingObject: any = {
-      tripType: this.tripType,
+    // Convert dates to DD-MM-YYYY
+    const departureDDMMYYYY = this.convertToDDMMYYYY(this.departureDate);
+    const returnDDMMYYYY = this.convertToDDMMYYYY(this.returnDate);
+
+    // BUILD FILTER OBJECT
+    const filterObject: any = {
       routeSource: this.origin,
       routeDestination: this.destination,
-      departureDate: this.departureDate,
-      returnDate: this.returnDate,
-      adultCount: this.adultCount,
-      childrenCount: this.childrenCount,
+      departureDate: departureDDMMYYYY
     };
 
-    const newFlightBookingFilterObject: any = {
-      routeSource: this.origin,
-      routeDestination: this.destination,
-      departureDate: this.departureDate,
-    };
-
-    if (this.flightClass === 'Any') {
-      // newFlightBookingFilterObject['isEconomyClass'] = true;
-      // newFlightBookingFilterObject['isBusinessClass'] = true;
-      // newFlightBookingFilterObject['isFirstClass'] = true;
-    } else if (this.flightClass === 'Economy Class') {
-      newFlightBookingFilterObject['isEconomyClass'] = true;
-    } else if (this.flightClass === 'Business Class') {
-      newFlightBookingFilterObject['isBusinessClass'] = true;
-    } else if (this.flightClass === 'First Class') {
-      newFlightBookingFilterObject['isFirstClass'] = true;
+    if (this.flightClass === 'Economy Class') {
+      filterObject['isEconomyClass'] = true;
     }
 
-    console.log('Flight Object: ', newFlightBookingObject);
-    console.log('Flight Fitler Object: ', newFlightBookingFilterObject);
+    console.log("FINAL FILTER SENT TO BACKEND:", filterObject);
 
     this.displayModal = true;
 
     this.flightService
-      .getFlights(newFlightBookingFilterObject)
-      .pipe(
-        // --- FIX #1: THIS STOPS THE LOADER ---
-        // This will ALWAYS run, even if there is an error
-        finalize(() => {
-          this.displayModal = false;
-        })
-      )
+      .getFlights(filterObject)
+      .pipe(finalize(() => (this.displayModal = false)))
       .subscribe(
         (result: any) => {
-          console.log('Fetched: ', result.data);
+          console.log("Fetched:", result.data);
 
-          // --- FIX #2: SAFELY CHECK THE DATA ---
-          // This checks if result.data is NOT an array and actually has the data you need
-          if (
-            result.data &&
-            !Array.isArray(result.data) &&
-            result.data.departureDateFlights &&
-            result.data.afterDepartureDateFlights
-          ) {
-            this.flightService.flights.splice(
-              0,
-              this.flightService.flights.length
-            );
-            this.flightService.nextFlights.splice(
-              0,
-              this.flightService.nextFlights.length
-            );
-
-            this.flightService.flights.push(...result.data.departureDateFlights);
-            this.flightService.nextFlights.push(
-              ...result.data.afterDepartureDateFlights
-            );
+          // Backend returns: { isDone, isError, data: [ flights ] }
+          if (Array.isArray(result.data) && result.data.length > 0) {
+            this.flightService.flights = result.data;
+            this.flightService.nextFlights = result.data;
 
             this.router.navigate(['/flights']);
           } else {
-            // This handles the "Fetched: Array(0)" case (no flights found)
-            console.warn('No flights found or data format was incorrect.');
-            this.flightService.flights.splice(
-              0,
-              this.flightService.flights.length
-            );
-            this.flightService.nextFlights.splice(
-              0,
-              this.flightService.nextFlights.length
-            );
-            this.toastr.info('No flights found for this search.');
+            this.toastr.info("No flights found for this search.");
           }
         },
         (error) => {
-          this.toastr.error('Error');
-          console.log('Error Occured: ', error.error.msg);
-          // We don't need displayModal = false here anymore,
-          // finalize() takes care of it.
+          this.toastr.error("Error fetching flights");
+          console.log("Error Occurred:", error);
         }
       );
   }
