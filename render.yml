@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: flight-booking-backend
+    env: node
+    plan: free
+    rootDir: Flight-Booking-Reservation-System-Backend-main
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MONGODB_URL
+        scope: build
+        sync: false
+      - key: TOKEN_PREFIX
+        scope: build
+        sync: false
+      - key: TOKEN_SECRET
+        scope: build
+        sync: false
+      - key: USER
+        scope: build
+        sync: false
+      - key: ADMIN
+        scope: build
+        sync: false
+
+  - type: static
+    name: flight-booking-frontend
+    plan: free
+    rootDir: Flight-Booking-Reservation-System-master
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist/flight-booking
+    routes:
+      - path: /*
+        destination: /index.html
