@@ -27,5 +27,6 @@ services:
     name: flight-booking-frontend
     plan: free
     rootDir: Flight-Booking-Reservation-System-master
-    buildCommand: npm install && npm run build
+    # build: install, build, then copy _redirects into the publish dir so Render picks it up
+    buildCommand: npm install && npm run build && cp _redirects dist/flight-booking/_redirects || true
     staticPublishPath: dist/flight-booking
