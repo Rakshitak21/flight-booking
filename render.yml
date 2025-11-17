@@ -29,6 +29,3 @@ services:
     rootDir: Flight-Booking-Reservation-System-master
     buildCommand: npm install && npm run build
     staticPublishPath: dist/flight-booking
-    routes:
-      - path: /*
-        destination: /index.html
